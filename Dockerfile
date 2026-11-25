@@ -199,7 +199,13 @@ RUN pip install --break-system-packages --no-cache-dir dacledit 2>/dev/null || \
 
 # ─── Go tools ─────────────────────────────────────────────────────────────────
 
-RUN go install github.com/projectdiscovery/httpx/cmd/httpx@latest && \
+# GOPROXY=direct: nuclei v3.11.1 transitively pins
+# github.com/Mzack9999/goimpacket@<pseudo-version>, a repo since renamed/
+# transferred to github.com/projectdiscovery/goimpacket. proxy.golang.org's
+# cache can't resolve the old import path post-rename (403s); a direct VCS
+# fetch follows GitHub's redirect and works. Scoped to this RUN only.
+RUN export GOPROXY=direct && \
+    go install github.com/projectdiscovery/httpx/cmd/httpx@latest && \
     go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest && \
     go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest && \
     go install github.com/projectdiscovery/dnsx/cmd/dnsx@latest && \

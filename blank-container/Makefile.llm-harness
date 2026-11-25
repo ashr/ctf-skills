@@ -1,0 +1,36 @@
+IMAGE := llm-harness
+WORKSPACE ?= $(shell pwd)
+
+.PHONY: build build-nocache run shell clean help
+
+build:
+	docker build --network host -t $(IMAGE) .
+
+build-nocache:
+	docker build --pull --no-cache --network host -t $(IMAGE) .
+
+# Usage: make run [WORKSPACE=/path/to/dir] [SANDBOX_TARGETS=host1,host2]
+# Default (no SANDBOX_TARGETS): unrestricted egress. Set it to lock the
+# container down to an explicit allowlist — see egress-control.sh.
+run:
+	docker run --rm -it \
+	    --cap-add NET_ADMIN \
+	    --security-opt no-new-privileges \
+	    --pids-limit 512 \
+	    --memory 4g \
+	    -e SANDBOX_TARGETS=$(SANDBOX_TARGETS) \
+	    -v "$(WORKSPACE):/workspace" \
+	    $(IMAGE)
+
+shell: run
+
+clean:
+	docker rmi $(IMAGE) 2>/dev/null || true
+
+help:
+	@echo "make build                                   -- build image"
+	@echo "make build-nocache                           -- force rebuild from scratch"
+	@echo "make run                                      -- run with cwd as workspace, unrestricted egress"
+	@echo "make run WORKSPACE=/path/to/dir               -- run with specific workspace"
+	@echo "make run SANDBOX_TARGETS=host1,host2          -- lock egress down to target(s)"
+	@echo "make clean                                    -- remove the built image"
