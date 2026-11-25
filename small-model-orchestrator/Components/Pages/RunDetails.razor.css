@@ -1,0 +1,55 @@
+.back-link { display: inline-block; margin-bottom: 24px; color: #55745f; font-size: 11px; text-decoration: none; }
+.back-link:hover { color: #226648; }
+.run-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; padding-bottom: 22px; border-bottom: 1px solid #d8e0d9; }
+.run-heading .eyebrow { margin-bottom: 8px; }
+.run-heading h1 { margin: 0; color: #1d2925; font: 600 34px/1.1 Georgia, "Times New Roman", serif; }
+.run-subtitle { margin: 9px 0 0; color: #78857d; font-size: 11px; }
+.run-status { padding: 8px 10px; border: 1px solid #d8e1d9; border-radius: 4px; background: rgba(255,255,255,.7); }
+.run-status.completed { color: #286b4d; }
+.run-status.failed { color: #a24740; }
+.run-layout { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(245px, .72fr); gap: 34px; padding-top: 22px; }
+.run-main-column { min-width: 0; }
+.run-side-column { min-width: 0; padding: 0 0 0 24px; border-left: 1px solid #dde4dd; }
+.run-section { margin-bottom: 24px; }
+.run-section-title { margin-bottom: 11px; }
+.run-section-title .eyebrow { margin-bottom: 5px; }
+.run-section-title h2 { margin: 0; color: #29362f; font: 600 14px "IBM Plex Sans", "Trebuchet MS", sans-serif; }
+.sub-count { display: inline-grid; min-width: 20px; height: 20px; margin-left: 4px; place-items: center; border: 1px solid #dce3dc; border-radius: 4px; color: #758179; font: 10px "IBM Plex Mono", "DejaVu Sans Mono", monospace; }
+.run-code { max-height: 420px; overflow: auto; margin: 0; padding: 14px; border: 1px solid #dce3dd; border-radius: 5px; background: #fff; color: #425148; font: 11px/1.6 "IBM Plex Mono", "DejaVu Sans Mono", monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.response-code { border-color: #d6e2d7; background: #fbfdf9; color: #26372e; }
+.error-code { border-color: #ebd2cb; background: #fff9f7; color: #93493f; }
+.usage-line { margin-top: 7px; color: #76837b; font: 9px "IBM Plex Mono", "DejaVu Sans Mono", monospace; }
+.usage-line span { padding: 0 5px; color: #b1b9b3; }
+.muted-note { color: #839087; font-size: 11px; }
+.artifact-entry { margin-top: 8px; border: 1px solid #dce3dd; border-radius: 5px; background: #fff; }
+.artifact-entry summary { min-height: 43px; padding: 8px 11px; display: flex; align-items: center; gap: 9px; cursor: pointer; list-style: none; }
+.artifact-entry summary::-webkit-details-marker { display: none; }
+.artifact-entry summary strong { color: #39473f; font-size: 11px; }
+.artifact-entry summary small { margin-left: auto; color: #829087; font: 9px "IBM Plex Mono", "DejaVu Sans Mono", monospace; }
+.artifact-type { padding: 4px 5px; border-radius: 3px; background: #eaf0d4; color: #63722e; font: 8px "IBM Plex Mono", "DejaVu Sans Mono", monospace; }
+.artifact-entry > .run-code { margin: 0 10px 10px; }
+.event-list { margin: 18px 0 25px; padding: 0; list-style: none; }
+.event-item { position: relative; display: grid; grid-template-columns: 10px minmax(0, 1fr); gap: 10px; padding-bottom: 18px; }
+.event-item:not(:last-child)::after { position: absolute; top: 10px; bottom: 0; left: 3px; width: 1px; background: #dbe3dc; content: ""; }
+.event-marker { z-index: 1; width: 7px; height: 7px; margin-top: 3px; border-radius: 50%; background: #9aa69d; }
+.event-marker.assistant { background: #31805c; }
+.event-marker.error { background: #bd5147; }
+.event-marker.recovery { background: #af8242; }
+.event-kind { color: #526158; font: 9px "IBM Plex Mono", "DejaVu Sans Mono", monospace; text-transform: uppercase; }
+.event-item time { float: right; color: #98a29c; font: 9px "IBM Plex Mono", "DejaVu Sans Mono", monospace; }
+.event-item p { margin: 5px 0 0; color: #7a877f; font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+.snapshot-details { border-top: 1px solid #dce3dd; padding-top: 13px; }
+.snapshot-details summary { color: #5c6a61; font-size: 11px; cursor: pointer; }
+.snapshot-details .run-code { margin-top: 10px; font-size: 9px; }
+.run-not-found { padding: 50px 0; }
+.run-not-found h1 { color: #26332c; font: 600 30px Georgia, "Times New Roman", serif; }
+.run-not-found a { color: #2b6a54; font-size: 11px; }
+
+@media (max-width: 760px) {
+    .run-heading { align-items: flex-start; flex-direction: column; }
+    .run-heading h1 { font-size: 29px; }
+    .run-layout { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+    .run-side-column { padding: 20px 0 0; border-top: 1px solid #dde4dd; border-left: 0; }
+    .artifact-entry summary { flex-wrap: wrap; }
+    .artifact-entry summary small { width: 100%; margin-left: 29px; }
+}

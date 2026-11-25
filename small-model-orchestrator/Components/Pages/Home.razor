@@ -1,0 +1,424 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+@using System.ComponentModel.DataAnnotations
+@inject JobRepository Jobs
+@inject JobRunService Runs
+@inject ExecutionOptions ExecutionPolicy
+
+<PageTitle>Jobs | Small Model Orchestrator</PageTitle>
+
+<div class="workspace-heading">
+	<div>
+		<p class="eyebrow">LOCAL INFERENCE / JOB LIBRARY</p>
+		<h1>Job definitions</h1>
+		<p class="heading-copy">Shape repeatable work for a constrained model. Each run will keep its own prompt snapshot.</p>
+	</div>
+	<button class="button button-primary" type="button" @onclick="StartNewJob">＋ New job</button>
+</div>
+
+<div class="workbench">
+	<section class="job-list-panel" aria-label="Saved jobs">
+		<div class="panel-heading">
+			<div>
+				<span class="eyebrow">LIBRARY</span>
+				<h2>Saved jobs</h2>
+			</div>
+			<span class="count-badge">@jobList.Count</span>
+		</div>
+
+		@if (isLoading)
+		{
+			<p class="empty-state">Opening local job library…</p>
+		}
+		else if (jobList.Count == 0)
+		{
+			<div class="empty-state">
+				<span class="empty-mark">01</span>
+				<strong>No jobs yet</strong>
+				<span>Make a small, specific prompt the first building block.</span>
+				<button class="text-button" type="button" @onclick="StartNewJob">Create the first job <span aria-hidden="true">→</span></button>
+			</div>
+		}
+		else
+		{
+			<div class="job-list">
+				@foreach (var job in jobList)
+				{
+					<button class="job-row @(editingJob?.Id == job.Id ? "selected" : "")" type="button" @onclick="() => SelectJob(job)">
+						<span class="job-status @(job.IsEnabled ? "enabled" : "paused")"></span>
+						<span class="job-row-copy">
+							<strong>@job.Name</strong>
+							<span>@(string.IsNullOrWhiteSpace(job.Description) ? "No notes yet" : job.Description)</span>
+						</span>
+						<span class="job-model">@job.Model</span>
+					</button>
+				}
+			</div>
+		}
+		<div class="library-footnote"><span class="storage-dot"></span> Local SQLite library</div>
+	</section>
+
+	<section class="editor-panel" aria-label="Job editor">
+		@if (editingJob is null)
+		{
+			<div class="editor-empty">
+				<span class="eyebrow">JOB EDITOR</span>
+				<h2>Select a job<br />or start a new one.</h2>
+				<p>Prompts and model budgets stay editable here. Save a definition to enable a run.</p>
+			</div>
+		}
+		else
+		{
+			<EditForm Model="editingJob" OnValidSubmit="SaveJobAsync" class="job-form">
+				<DataAnnotationsValidator />
+				<div class="editor-topline">
+					<div>
+						<span class="eyebrow">@(editingJob.Id == 0 ? "NEW DEFINITION" : $"JOB {editingJob.Id:000}")</span>
+						<h2>@(editingJob.Id == 0 ? "Configure a job" : "Edit definition")</h2>
+					</div>
+					@if (editingJob.Id != 0)
+					{
+						<div class="editor-actions">
+							<button class="icon-button" type="button" title="Duplicate job" aria-label="Duplicate job" @onclick="DuplicateJobAsync">⧉</button>
+							<button class="icon-button danger" type="button" title="Delete job" aria-label="Delete job" @onclick="DeleteJobAsync">⌫</button>
+						</div>
+					}
+				</div>
+
+				@if (!string.IsNullOrEmpty(message))
+				{
+					<div class="notice @(isError ? "notice-error" : "notice-success")" role="status">@message</div>
+				}
+
+				<div class="field-grid identity-grid">
+					<label class="field field-name">
+						<span>Job name</span>
+						<InputText @bind-Value="editingJob.Name" maxlength="100" placeholder="e.g. Recon summary" />
+						<ValidationMessage For="() => editingJob.Name" />
+					</label>
+					<label class="field">
+						<span>Model alias</span>
+						<InputText @bind-Value="editingJob.Model" maxlength="160" placeholder="qwen3.6" />
+						<ValidationMessage For="() => editingJob.Model" />
+					</label>
+					<label class="field field-description">
+						<span>Notes <small>Optional</small></span>
+						<InputText @bind-Value="editingJob.Description" maxlength="500" placeholder="When should you use this job?" />
+					</label>
+				</div>
+
+				<label class="field prompt-field">
+					<span>System prompt <small>Role, boundaries, output expectations</small></span>
+					<InputTextArea @bind-Value="editingJob.SystemPrompt" rows="5" placeholder="You are a focused assistant. Work only from evidence provided…" />
+					<ValidationMessage For="() => editingJob.SystemPrompt" />
+				</label>
+
+				<label class="field prompt-field">
+					<span>Task prompt <small>Use {{input}} for a value supplied at run time</small></span>
+					<InputTextArea @bind-Value="editingJob.UserPrompt" rows="5" placeholder="Analyze this input and return concise, evidence-grounded findings:\n\n{{input}}" />
+					<ValidationMessage For="() => editingJob.UserPrompt" />
+				</label>
+
+				<div class="budget-header">
+					<div><span class="eyebrow">RESOURCE BUDGET</span><h3>Keep the loop bounded</h3></div>
+					<label class="toggle-field">
+						<InputCheckbox @bind-Value="editingJob.IsEnabled" />
+						<span>@(editingJob.IsEnabled ? "Enabled" : "Paused")</span>
+					</label>
+				</div>
+				<div class="budget-grid">
+					<label class="field compact-field">
+						<span>Temperature</span>
+						<InputNumber @bind-Value="editingJob.Temperature" step="0.1" />
+						<ValidationMessage For="() => editingJob.Temperature" />
+					</label>
+					<label class="field compact-field">
+						<span>Output tokens</span>
+						<InputNumber @bind-Value="editingJob.MaxOutputTokens" step="256" />
+						<ValidationMessage For="() => editingJob.MaxOutputTokens" />
+					</label>
+					<label class="field compact-field">
+						<span>Max model/tool turns</span>
+						<InputNumber @bind-Value="editingJob.MaxIterations" />
+						<ValidationMessage For="() => editingJob.MaxIterations" />
+					</label>
+					<label class="field compact-field">
+						<span>Shell output char cap</span>
+						<InputNumber @bind-Value="editingJob.MaxToolOutputCharacters" step="1000" />
+						<ValidationMessage For="() => editingJob.MaxToolOutputCharacters" />
+					</label>
+				</div>
+
+				<div class="tool-permissions">
+					<label class="toggle-field">
+						<InputCheckbox @bind-Value="editingJob.AllowShellTools" disabled="@(!ExecutionPolicy.EnableShellTools)" />
+						<span>Allow Bash tool calls</span>
+					</label>
+					<p>@(ExecutionPolicy.EnableShellTools
+						? "Commands execute inside the CTF tools container as ctf (non-root, no sudo). Commands and outputs are saved with the run."
+						: "Shell execution is disabled in this app process. Launch the UI with run-ctf.sh CTF_WEB_UI=1 to enable container execution.")</p>
+				</div>
+
+				<div class="form-footer">
+					<span class="save-hint">@SaveHint</span>
+					<button class="button button-primary" type="submit" disabled="@isSaving">
+						@(isSaving ? "Saving…" : "Save definition")
+					</button>
+				</div>
+			</EditForm>
+
+			@if (editingJob.Id != 0)
+			{
+				<div class="launch-panel">
+					<div class="launch-heading">
+						<div><span class="eyebrow">RUN INPUT</span><h3>Queue this job</h3></div>
+						<span class="launch-model">@editingJob.Model</span>
+					</div>
+					<label class="field">
+						<span>Input <small>Inserted where the prompt contains {{input}}</small></span>
+						<InputTextArea @bind-Value="runInput" rows="3" placeholder="Enter the task context or input for this run…" />
+					</label>
+					<div class="launch-footer">
+						<span class="save-hint">@RunModeSummary · @editingJob.MaxOutputTokens max output tokens</span>
+						<button class="button button-launch" type="button" @onclick="QueueRunAsync" disabled="@(!editingJob.IsEnabled || isSaving || isQueueing)">
+							@(isQueueing ? "Queueing…" : "▶ Queue run")
+						</button>
+					</div>
+				</div>
+			}
+		}
+	</section>
+</div>
+
+<section class="runs-section" aria-label="Recent runs">
+	<div class="runs-heading">
+		<div><span class="eyebrow">EXECUTION HISTORY</span><h2>Recent runs</h2></div>
+	<div class="runs-heading-actions">
+		@if (recentRuns.Any(run => run.Status == JobRunStatus.Queued || run.Status == JobRunStatus.Running))
+		{
+			<span class="queue-live"><i></i> WORKER ACTIVE</span>
+		}
+		<button class="icon-button" type="button" title="Refresh run history" aria-label="Refresh run history" @onclick="RefreshRunsAsync">↻</button>
+	</div>
+	</div>
+	@if (recentRuns.Count == 0)
+	{
+		<div class="runs-empty">Runs appear here once a saved job is queued.</div>
+	}
+	else
+	{
+		<div class="runs-table-wrap">
+			<table class="runs-table">
+				<thead><tr><th>JOB</th><th>MODEL</th><th>STATUS</th><th>QUEUED</th><th>RESULT</th><th></th></tr></thead>
+				<tbody>
+					@foreach (var run in recentRuns)
+					{
+						<tr>
+							<td><a class="run-job-link" href="/runs/@run.Id">@run.JobName <span>run @run.Id.ToString("000")</span></a></td>
+							<td class="mono-cell">@run.Model</td>
+							<td><span class="run-status-table @run.Status.ToLowerInvariant()"><i></i>@run.Status</span></td>
+							<td class="time-cell">@run.QueuedAtUtc.ToLocalTime().ToString("MMM d · HH:mm")</td>
+							<td class="result-cell">@(run.Result ?? run.ErrorMessage ?? run.Events.OrderByDescending(item => item.CreatedAtUtc).FirstOrDefault()?.Message ?? "")</td>
+							<td><a class="open-run" href="/runs/@run.Id" title="Open run" aria-label="Open run">↗</a></td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	}
+</section>
+
+@code {
+	private List<JobDefinition> jobList = [];
+	private List<JobRun> recentRuns = [];
+	private JobDefinition? editingJob;
+	private bool isLoading = true;
+	private bool isSaving;
+	private bool isQueueing;
+	private bool isError;
+	private string message = "";
+	private string runInput = "";
+	private readonly CancellationTokenSource pollCancellation = new();
+	private string SaveHint => editingJob?.Id == 0 ? "New definitions are stored only when saved." : $"Last saved {editingJob?.UpdatedAtUtc.ToLocalTime():MMM d, HH:mm} local time.";
+	private string RunModeSummary => editingJob?.AllowShellTools == true && ExecutionPolicy.EnableShellTools
+		? "Bash enabled · one command at a time"
+		: "Text-only · one request at a time";
+
+	protected override async Task OnInitializedAsync()
+	{
+		await RefreshJobsAsync();
+		await RefreshRunsAsync();
+		_ = PollRunsAsync(pollCancellation.Token);
+	}
+
+	private async Task RefreshJobsAsync()
+	{
+		jobList = await Jobs.ListAsync();
+		isLoading = false;
+	}
+
+	private async Task RefreshRunsAsync()
+	{
+		recentRuns = await Runs.ListRecentAsync();
+	}
+
+	private void StartNewJob()
+	{
+		editingJob = new JobDefinition
+		{
+			Name = "New job",
+			Model = "qwen36",
+			SystemPrompt = "You are a precise assistant. Use only the evidence and tools provided. State uncertainty clearly.",
+			UserPrompt = "Complete this task using the supplied context:\n\n{{input}}"
+		};
+		message = "";
+		isError = false;
+		runInput = "";
+	}
+
+	private void SelectJob(JobDefinition job)
+	{
+		editingJob = new JobDefinition
+		{
+			Id = job.Id,
+			Name = job.Name,
+			Description = job.Description,
+			SystemPrompt = job.SystemPrompt,
+			UserPrompt = job.UserPrompt,
+			Model = job.Model,
+			Temperature = job.Temperature,
+			MaxOutputTokens = job.MaxOutputTokens,
+			MaxIterations = job.MaxIterations,
+			MaxToolOutputCharacters = job.MaxToolOutputCharacters,
+			IsEnabled = job.IsEnabled,
+			AllowShellTools = job.AllowShellTools,
+			CreatedAtUtc = job.CreatedAtUtc,
+			UpdatedAtUtc = job.UpdatedAtUtc
+		};
+		message = "";
+		isError = false;
+		runInput = "";
+	}
+
+	private async Task QueueRunAsync()
+	{
+		if (editingJob is null || editingJob.Id == 0 || !editingJob.IsEnabled)
+		{
+			return;
+		}
+
+		var validationResults = new List<ValidationResult>();
+		var isValid = Validator.TryValidateObject(editingJob, new ValidationContext(editingJob), validationResults, validateAllProperties: true);
+		if (!isValid)
+		{
+			isError = true;
+			message = string.Join(" ", validationResults.Select(result => result.ErrorMessage));
+			return;
+		}
+
+		isQueueing = true;
+		message = "";
+		try
+		{
+			editingJob = await Jobs.SaveAsync(editingJob);
+			var run = await Runs.QueueAsync(editingJob.Id, runInput);
+			await RefreshJobsAsync();
+			await RefreshRunsAsync();
+			message = $"Run {run.Id:000} queued. Its prompt and model settings are now snapshotted.";
+			isError = false;
+		}
+		catch (Exception exception)
+		{
+			isError = true;
+			message = $"Could not queue run: {exception.Message}";
+		}
+		finally
+		{
+			isQueueing = false;
+		}
+	}
+
+	private async Task PollRunsAsync(CancellationToken cancellationToken)
+	{
+		using var timer = new PeriodicTimer(TimeSpan.FromSeconds(3));
+		try
+		{
+			while (await timer.WaitForNextTickAsync(cancellationToken))
+			{
+				if (!recentRuns.Any(run => run.Status == JobRunStatus.Queued || run.Status == JobRunStatus.Running))
+				{
+					continue;
+				}
+
+				await InvokeAsync(async () =>
+				{
+					await RefreshRunsAsync();
+					StateHasChanged();
+				});
+			}
+		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+		{
+		}
+	}
+
+	public async ValueTask DisposeAsync()
+	{
+		await pollCancellation.CancelAsync();
+		pollCancellation.Dispose();
+	}
+
+	private async Task SaveJobAsync()
+	{
+		if (editingJob is null)
+		{
+			return;
+		}
+
+		isSaving = true;
+		message = "";
+		try
+		{
+			editingJob = await Jobs.SaveAsync(editingJob);
+			await RefreshJobsAsync();
+			message = "Definition saved to the local library.";
+		}
+		catch (Exception exception)
+		{
+			isError = true;
+			message = $"Could not save definition: {exception.Message}";
+		}
+		finally
+		{
+			isSaving = false;
+		}
+	}
+
+	private async Task DuplicateJobAsync()
+	{
+		if (editingJob is null)
+		{
+			return;
+		}
+
+		editingJob = await Jobs.SaveAsync(editingJob.CopyForNew());
+		await RefreshJobsAsync();
+		message = "A separate copy was created.";
+		isError = false;
+	}
+
+	private async Task DeleteJobAsync()
+	{
+		if (editingJob is null || editingJob.Id == 0)
+		{
+			return;
+		}
+
+		await Jobs.DeleteAsync(editingJob.Id);
+		editingJob = null;
+		await RefreshJobsAsync();
+		message = "Definition deleted.";
+		isError = false;
+	}
+}

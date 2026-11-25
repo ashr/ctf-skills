@@ -1,0 +1,101 @@
+@page "/runs/{RunId:int}"
+@rendermode InteractiveServer
+@inject IDbContextFactory<OrchestratorDbContext> ContextFactory
+
+<PageTitle>Run @RunId | Small Model Orchestrator</PageTitle>
+
+<a class="back-link" href="/">← Job library</a>
+
+@if (run is null)
+{
+    <div class="run-not-found"><span class="eyebrow">RUN @RunId</span><h1>Run not found</h1><a href="/">Return to jobs</a></div>
+}
+else
+{
+    <div class="run-heading">
+        <div>
+            <p class="eyebrow">RUN / @run.Id.ToString("000") / @run.Model</p>
+            <h1>@run.JobName</h1>
+            <p class="run-subtitle">Queued @run.QueuedAtUtc.ToLocalTime().ToString("MMM d, yyyy · HH:mm:ss")</p>
+        </div>
+        <span class="run-status @run.Status.ToLowerInvariant()"><i></i>@run.Status</span>
+    </div>
+
+    <div class="run-layout">
+        <section class="run-main-column">
+            <div class="run-section">
+                <div class="run-section-title"><span class="eyebrow">01 / INPUT</span><h2>Run input</h2></div>
+                <pre class="run-code">@run.InputText</pre>
+            </div>
+
+            @if (!string.IsNullOrEmpty(run.Result))
+            {
+                <div class="run-section">
+                    <div class="run-section-title"><span class="eyebrow">02 / RESPONSE</span><h2>Model output</h2></div>
+                    <pre class="run-code response-code">@run.Result</pre>
+                    @if (run.TotalTokens is not null)
+                    {
+                        <div class="usage-line">@run.PromptTokens input <span>/</span> @run.CompletionTokens output <span>/</span> @run.TotalTokens total tokens</div>
+                    }
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(run.ErrorMessage))
+            {
+                <div class="run-section">
+                    <div class="run-section-title"><span class="eyebrow">RUN ERROR</span><h2>Execution stopped</h2></div>
+                    <pre class="run-code error-code">@run.ErrorMessage</pre>
+                </div>
+            }
+
+            <div class="run-section">
+                <div class="run-section-title"><span class="eyebrow">03 / EVIDENCE</span><h2>Artifacts <span class="sub-count">@run.Artifacts.Count</span></h2></div>
+                @if (run.Artifacts.Count == 0)
+                {
+                    <p class="muted-note">No artifacts recorded for this run.</p>
+                }
+                else
+                {
+                    @foreach (var artifact in run.Artifacts)
+                    {
+                        <details class="artifact-entry">
+                            <summary><span class="artifact-type">TXT</span><strong>@artifact.Name</strong><small>@artifact.MediaType · @artifact.Content.Length bytes</small></summary>
+                            <pre class="run-code">@System.Text.Encoding.UTF8.GetString(artifact.Content)</pre>
+                        </details>
+                    }
+                }
+            </div>
+        </section>
+
+        <aside class="run-side-column">
+            <div class="run-section-title"><span class="eyebrow">TIMELINE</span><h2>Run events</h2></div>
+            <ol class="event-list">
+                @foreach (var item in run.Events.OrderBy(item => item.CreatedAtUtc))
+                {
+                    <li class="event-item">
+                        <span class="event-marker @item.Kind.ToLowerInvariant()"></span>
+                        <div><span class="event-kind">@item.Kind</span><time>@item.CreatedAtUtc.ToLocalTime().ToString("HH:mm:ss")</time><p>@item.Message</p></div>
+                    </li>
+                }
+            </ol>
+            <details class="snapshot-details">
+                <summary>Prompt snapshot</summary>
+                <pre class="run-code">@run.PromptSnapshotJson</pre>
+            </details>
+        </aside>
+    </div>
+}
+
+@code {
+    [Parameter] public int RunId { get; set; }
+    private JobRun? run;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await using var database = await ContextFactory.CreateDbContextAsync();
+        run = await database.JobRuns
+            .AsNoTracking()
+            .Include(item => item.Events)
+            .Include(item => item.Artifacts)
+            .SingleOrDefaultAsync(item => item.Id == RunId);
+    }
+}

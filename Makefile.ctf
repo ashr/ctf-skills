@@ -1,0 +1,32 @@
+IMAGE := ctf-agents
+DOCKERFILE := Dockerfile
+
+.PHONY: build run shell clean check help
+
+build:
+	docker build --network host -t $(IMAGE) .
+
+build-nocache:
+	docker build --pull --no-cache --network host -t $(IMAGE) .
+
+# Usage: make run [WORKSPACE=/path/to/ctf/dir] [GITHUB_TOKEN=ghp_...] [CTF_TARGETS=...]
+# Defaults to cwd. run-ctf.sh seeds ctf-context.yaml from template on first run.
+run:
+	GITHUB_TOKEN=$(GITHUB_TOKEN) SHODAN_API_KEY=$(SHODAN_API_KEY) CTF_TARGETS=$(CTF_TARGETS) \
+	bash run-ctf.sh $(if $(WORKSPACE),$(WORKSPACE),$(shell pwd))
+
+shell: run
+
+check:
+	docker run --rm $(IMAGE) bash /workspace/install-tooling.sh --check
+
+clean:
+	docker rmi $(IMAGE) 2>/dev/null || true
+
+help:
+	@echo "make build                                    -- build image"
+	@echo "make run                                      -- run with cwd as workspace"
+	@echo "make run WORKSPACE=/path/to/ctf               -- run with specific workspace"
+	@echo "make run GITHUB_TOKEN=ghp_... SHODAN_API_KEY= -- pass credentials"
+	@echo "make run CTF_TARGETS=host.htb,10.10.11.42   -- lock egress down to target(s)"
+	@echo "make check                                    -- verify tools in image"

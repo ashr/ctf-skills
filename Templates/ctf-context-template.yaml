@@ -1,0 +1,13 @@
+# CTF Context Template
+# Copy to /workspace/ctf-context.yaml and fill in before starting.
+
+target:
+  ip: "10.10.11.42"         # Machine IP from HTB or CTF platform
+  name: "MachineName"       # Machine name (e.g. "Editorial", "Perfection")
+  os: "linux"               # linux | windows | unknown
+  difficulty: "easy"        # easy | medium | hard | insane
+  category: "fullpwn"       # fullpwn | web | pwn | crypto | forensics | misc
+
+vpn:
+  iface: "tun0"             # TUN interface created by openvpn
+  ovpn_file: "/workspace/htb.ovpn"  # path to .ovpn file; omit if already connected

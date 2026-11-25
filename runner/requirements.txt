@@ -1,0 +1,6 @@
+litellm>=1.50
+pyyaml
+# litellm pulls in aiohttp->aiodns; older pycares lacks ares_query_a_result and
+# breaks the import chain (AttributeError at aiodns.DNSResolver class def).
+pycares>=4.6
+aiodns>=3.2

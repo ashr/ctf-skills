@@ -1,0 +1,7 @@
+.git/
+.venv/
+**/bin/
+**/obj/
+small-model-orchestrator/data/*.db
+small-model-orchestrator/data/*.db-shm
+small-model-orchestrator/data/*.db-wal
